@@ -78,7 +78,7 @@ html {
         margin-bottom: 5%;
         margin-left: 31.3%;
     }
-    /*  BUTTONS  */
+    /* BUTTONS  */
     .btn {
         width: 15rem;
         height: 4rem;
@@ -142,7 +142,7 @@ html {
     .btn p {
         font-size: 1.6rem;
     }
-    /*  CLOCK  */
+    /* CLOCK  */
     .clock {
         grid-column: 1/3;
         grid-row: 1/3;
@@ -160,6 +160,8 @@ html {
         position: absolute;
         transform-origin: bottom;
         bottom: 6rem;
+        left: 50%; /* Center the alignment before rotation calculations execute */
+        transform: translateX(-50%) rotate(calc(var(--rotation) * 1deg)); /* FIXED: Translates and maps Javascript script loops */
         border-radius: 0.2rem;
         z-index: 200;
     }
@@ -238,7 +240,7 @@ html {
         left: 98%;
         transform: translateX(-0.6rem);
     }
-    /*  ICONS  */
+    /* ICONS  */
     .icon {
         grid-column: 3/4;
         grid-row: 4/5;
@@ -322,7 +324,7 @@ html {
         justify-items: center;
         margin-bottom: 5%;
     }
-    /*  BUTTONS  */
+    /* BUTTONS  */
     .btn {
         width: 15rem;
         height: 4rem;
@@ -376,7 +378,7 @@ html {
     .btn p {
         font-size: 1.6rem;
     }
-    /*  CLOCK  */
+    /* CLOCK  */
     .clock {
         grid-column: 1/2;
         grid-row: 1/3;
@@ -394,6 +396,8 @@ html {
         position: absolute;
         transform-origin: bottom;
         bottom: 6rem;
+        left: 50%;
+        transform: translateX(-50%) rotate(calc(var(--rotation) * 1deg)); /* FIXED: Translates and maps Javascript script loops */
         border-radius: 0.2rem;
         z-index: 200;
     }
@@ -472,7 +476,7 @@ html {
         left: 98%;
         transform: translateX(-0.6rem);
     }
-    /*  ICONS  */
+    /* ICONS  */
     .icon {
         grid-column: 3/4;
         grid-row: 4/5;

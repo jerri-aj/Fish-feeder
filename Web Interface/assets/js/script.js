@@ -1,142 +1,122 @@
-/* clock */
+// ==========================================================================
+// 1. FIREBASE INITIALIZATION 
+// ==========================================================================
+// Make sure this matches your project configuration snippet exactly
+const firebaseConfig = {
+    databaseURL: "https://auto-fish-feeder-5ac75-default-rtdb.firebaseio.com"
+};
+
+// Initialize Firebase if it hasn't been already
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+
+const db = firebase.database();
+const commandRef = db.ref('feeder/command');
+const statusRef = db.ref('feeder/lastActionStatus');
+const countRef = db.ref('feeder/count');
+
+// ==========================================================================
+// 2. NEUMORPHIC ANALOG CLOCK LOGIC
+// ==========================================================================
 const hours = document.querySelector('.hours');
 const minutes = document.querySelector('.minutes');
 const seconds = document.querySelector('.seconds');
 
-clock = () => {
-    let today = new Date();
-    let h = today.getHours() % 12 + today.getMinutes() / 59; // 22 % 12 = 10pm
-    let m = today.getMinutes(); // 0 - 59
-    let s = today.getSeconds(); // 0 - 59
-
-    h *= 30; // 12 * 30 = 360deg
-    m *= 6;
-    s *= 6; // 60 * 6 = 360deg
-
-    rotation(hours, h);
-    rotation(minutes, m);
-    rotation(seconds, s);
-
-    // call every second
-    setTimeout(clock, 500);
-};
-
-rotation = (target, val) => {
-    target.style.transform = `rotate(${val}deg)`;
-};
-
-window.onload = clock();
-
-function toggleDiv() {
-    $('.components').toggle();
-    $('.components2').toggle();
+function setClock() {
+    const currentDate = new Date();
+    const secondsRatio = currentDate.getSeconds() / 60;
+    const minutesRatio = (secondsRatio + currentDate.getMinutes()) / 60;
+    const hoursRatio = (minutesRatio + currentDate.getHours()) / 12;
+    
+    setRotation(seconds, secondsRatio);
+    setRotation(minutes, minutesRatio);
+    setRotation(hours, hoursRatio);
 }
 
-// --- FIREBASE CONFIGURATION ---
-const firebaseConfig = {
-    apiKey: "AIzaSyBc6BEmwR2a7rtfUAL10CPKC5TP2qyxFNw",
-    authDomain: "auto-fish-feeder-5ac75.firebaseapp.com",
-    databaseURL: "https://auto-fish-feeder-5ac75-default-rtdb.firebaseio.com",
-    projectId: "auto-fish-feeder-5ac75",
-    storageBucket: "auto-fish-feeder-5ac75.firebasestorage.app",
-    messagingSenderId: "391704484141",
-    appId: "1:391704484141:web:659fd9b5eaecde78365ba4"
-};
-
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-
-var countRef = firebase.database().ref('count');
-countRef.on('value', function(snapshot) {
-    count = snapshot.val();
-    console.log(count);
-});
-
-// Controls the Feed Now Button
-function feednow() {
-    console.log("Sending manual feed trigger...");
-    firebase.database().ref().update({
-        feednow: 1
-    });
-}
-
-$(document).ready(function() {
-    $('#timepicker').mdtimepicker(); //Initializes the time picker
-    addDiv();
-});
-
-$('#timepicker').mdtimepicker().on('timechanged', function(e) {
-    console.log(e.time);
-    addStore(count, e);
-    count = count + 1;
-    firebase.database().ref().update({
-        count: parseInt(count),
-    });
-});
-
-function addStore(count, e) {
-    firebase.database().ref('timers/timer' + count).set({
-        time: e.time
-    });
-    addDiv();
-}
-
-function showShort(id) {
-    var idv = $(id)[0]['id'];
-    $("#time_" + idv).toggle();
-    $("#short_" + idv).toggle();
-}
-
-function removeDiv(id) {
-    var idv = $(id)[0]['id'];
-    firebase.database().ref('timers/' + idv).remove();
-    if (count >= 0) {
-        count = count - 1;
+function setRotation(element, rotationRatio) {
+    if(element) {
+        element.style.setProperty('--rotation', rotationRatio * 360);
     }
-
-    firebase.database().ref().update({
-        count: parseInt(count),
-    });
-    $(id).fadeOut(1, 0).fadeTo(500, 0);
 }
 
-function addDiv() {
-    var divRef = firebase.database().ref('timers');
-    divRef.on('value', function(snapshot) {
-        var obj = snapshot.val();
-        var i = 0;
-        $('#wrapper').html('');
+// Run clock every second
+setInterval(setClock, 1000);
+setClock();
+
+// ==========================================================================
+// 3. STEP 3: "FEED NOW" HANDSHAKE LOGIC
+// ==========================================================================
+const feedButton = document.getElementById('feedNowBtn');
+const feedBtnText = document.getElementById('feedBtnText');
+
+function feednow() {
+    if (!feedButton || feedButton.classList.contains('loading')) return;
+
+    // 1. Visually change the button to show the instruction is on its way
+    feedButton.style.pointerEvents = 'none'; // Disable clicking
+    if (feedBtnText) feedBtnText.innerText = 'Sending...';
+    feedButton.classList.add('loading');
+
+    // 2. Set the command node to "feed"
+    commandRef.set('feed')
+    .then(() => {
+        if (feedBtnText) feedBtnText.innerText = 'Feeding...';
+        console.log("Feed command registered on Firebase. Waiting for WeMos...");
+    })
+    .catch((error) => {
+        console.error("Firebase database error:", error);
+        resetButtonNormal();
+    });
+}
+
+// 3. The Live Listener: Watches for the WeMos to echo "success" back
+statusRef.on('value', (snapshot) => {
+    const statusValue = snapshot.val();
+    
+    if (statusValue === 'success') {
+        console.log("Handshake verified! Servo confirmed movement.");
         
-        if (obj) {
-            while (i <= count) {
-                var propertyValues = Object.entries(obj);
-                if (propertyValues[i]) {
-                    let ts = propertyValues[i][1]['time'];
-                    var H = +ts.substr(0, 2);
-                    var h = (H % 12) || 12;
-                    h = (h < 10) ? ("0" + h) : h; 
-                    var ampm = H < 12 ? " AM" : " PM";
-                    ts = h + ts.substr(2, 3) + ampm;
-                    console.log(ts);
-
-                    const x = `
-                    <div id=${propertyValues[i][0]}>
-                        <div class="btn2 btn__secondary2" onclick=showShort(${propertyValues[i][0]}) id="main_${propertyValues[i][0]}">
-                        <div id="time_${propertyValues[i][0]}">
-                        ${ts}
-                        </div>
-                        <div class="icon2" id="short_${propertyValues[i][0]}" onclick=removeDiv(${propertyValues[i][0]})>
-                            <div class="icon__add">
-                                <ion-icon name="trash"></ion-icon>
-                            </div>
-                        </div>
-                        </div>
-                    </div>`;
-
-                    $('#wrapper').append(x);
-                }
-                i++;
-            }
+        if (feedBtnText) {
+            feedBtnText.innerHTML = '✨ Success!';
+            feedButton.style.background = '#2ecc71'; // Pop bright green on verification
+            feedButton.style.color = '#ffffff';
         }
-    });
+
+        // Wait 3 seconds, clean up database flags, and restore UI base design
+        setTimeout(() => {
+            resetButtonNormal();
+            statusRef.set('idle'); // Prepare verification pipeline for next instance
+        }, 3000);
+    }
+});
+
+function resetButtonNormal() {
+    if (feedButton) {
+        feedButton.style.pointerEvents = 'auto';
+        feedButton.style.background = ''; // Drops back to CSS template baseline variables
+        feedButton.style.color = '';
+        feedButton.classList.remove('loading');
+    }
+    if (feedBtnText) {
+        feedBtnText.innerText = 'Feed Now';
+    }
 }
+
+// ==========================================================================
+// 4. UI INTERACTION & SCHEDULER LOGIC
+// ==========================================================================
+function toggleDiv() {
+    var comp1 = document.getElementById("1");
+    var comp2 = document.getElementById("2");
+    if (comp1.style.display === "none") {
+        comp1.style.display = "block";
+        comp2.style.display = "none";
+    } else {
+        comp1.style.display = "none";
+        comp2.style.display = "block";
+    }
+}
+
+// Placeholder setups for your mdtimepicker triggers and listing layout builders
+// Keep your existing addStore() and scheduler mechanics underneath this layout block

@@ -1,6 +1,4 @@
-<!--UI Developed by Shebin Jose Jacob-->
 <!DOCTYPE html>
-
 <html lang="en">
 
 <head>
@@ -13,12 +11,14 @@
     <script nomodule='' src='https://unpkg.com/ionicons@5.0.0/dist/ionicons/ionicons.js'></script>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
-    <link rel="stylesheet" href="assets/css/style.css">
-    <link rel="stylesheet" href="assets/css/mdtimepicker.css">
+    
+    <link rel="stylesheet" href="./assets/css/style.css">
+    <link rel="stylesheet" href="./assets/css/mdtimepicker.css">
+    
     <script src="https://www.gstatic.com/firebasejs/7.15.5/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/7.15.5/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/7.15.5/firebase-database.js"></script>
-    <script src="assets/js/mdtimepicker.js"></script>
+    <script src="./assets/js/mdtimepicker.js"></script>
 </head>
 
 <body translate="no">
@@ -36,13 +36,15 @@
                     <span class="marker__4"></span>
                 </div>
             </div>
-            <div class="btn btn__primary" onclick="feednow()">
-                <p>Feed Now</p>
+            
+            <div class="btn btn__primary" id="feedNowBtn" onclick="feednow()">
+                <p id="feedBtnText">Feed Now</p>
             </div>
             <div class="btn btn__secondary" onclick="toggleDiv()">
                 <p>Schedule</p>
             </div>
         </div>
+        
         <div class="components2" id="2">
             <div id="wrapper" class="wrapper">
             </div>
@@ -54,8 +56,11 @@
         </div>
     </div>
 
-    <script id="rendered-js" src="assets/js/script.js">
-    </script>
+    <script id="rendered-js" src="./assets/js/script.js"></script>
+    <script src="./assets/js/mdtimepicker.js"></script>
+</body>
+
+</html>
     <script src="assets/js/mdtimepicker.js"></script>
 </body>
 

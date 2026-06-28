@@ -150,15 +150,16 @@ function convertTo24Hour(timeStr) {
 
 function saveTimeToFirebase(timeString) {
     if (!timeString) return;
-    scheduleRef.push({
-        time: timeString,
-        timestamp: Date.now()
+
+    // TARGET THE EXACT PATH: "timers/timer1" instead of pushing a random ID
+    firebase.database().ref('timers').update({
+        timer1: timeString
     })
     .then(() => {
-        console.log("Data saved to Firebase successfully!");
+        console.log("Success! Updated timer1 to:", timeString);
     })
     .catch((error) => {
-        console.error("Firebase write crash layout error:", error);
+        console.error("Firebase write error:", error);
     });
 }
 

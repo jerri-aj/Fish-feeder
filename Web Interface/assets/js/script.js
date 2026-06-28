@@ -1,12 +1,10 @@
 // ==========================================================================
 // 1. FIREBASE INITIALIZATION 
 // ==========================================================================
-// Make sure this matches your project configuration snippet exactly
 const firebaseConfig = {
     databaseURL: "https://auto-fish-feeder-5ac75-default-rtdb.firebaseio.com"
 };
 
-// Initialize Firebase if it hasn't been already
 if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
 }
@@ -14,7 +12,7 @@ if (!firebase.apps.length) {
 const db = firebase.database();
 const commandRef = db.ref('feeder/command');
 const statusRef = db.ref('feeder/lastActionStatus');
-const countRef = db.ref('feeder/count');
+const scheduleRef = db.ref('feeder/schedule'); // Path where schedules are saved
 
 // ==========================================================================
 // 2. NEUMORPHIC ANALOG CLOCK LOGIC
@@ -40,12 +38,11 @@ function setRotation(element, rotationRatio) {
     }
 }
 
-// Run clock every second
 setInterval(setClock, 1000);
 setClock();
 
 // ==========================================================================
-// 3. STEP 3: "FEED NOW" HANDSHAKE LOGIC
+// 3. "FEED NOW" HANDSHAKE LOGIC
 // ==========================================================================
 const feedButton = document.getElementById('feedNowBtn');
 const feedBtnText = document.getElementById('feedBtnText');
@@ -53,16 +50,14 @@ const feedBtnText = document.getElementById('feedBtnText');
 function feednow() {
     if (!feedButton || feedButton.classList.contains('loading')) return;
 
-    // 1. Visually change the button to show the instruction is on its way
-    feedButton.style.pointerEvents = 'none'; // Disable clicking
+    feedButton.style.pointerEvents = 'none';
     if (feedBtnText) feedBtnText.innerText = 'Sending...';
     feedButton.classList.add('loading');
 
-    // 2. Set the command node to "feed"
     commandRef.set('feed')
     .then(() => {
         if (feedBtnText) feedBtnText.innerText = 'Feeding...';
-        console.log("Feed command registered on Firebase. Waiting for WeMos...");
+        console.log("Feed command registered on Firebase.");
     })
     .catch((error) => {
         console.error("Firebase database error:", error);
@@ -70,23 +65,20 @@ function feednow() {
     });
 }
 
-// 3. The Live Listener: Watches for the WeMos to echo "success" back
 statusRef.on('value', (snapshot) => {
     const statusValue = snapshot.val();
     
     if (statusValue === 'success') {
-        console.log("Handshake verified! Servo confirmed movement.");
-        
+        console.log("Handshake verified!");
         if (feedBtnText) {
             feedBtnText.innerHTML = '✨ Success!';
-            feedButton.style.background = '#2ecc71'; // Pop bright green on verification
+            feedButton.style.background = '#2ecc71';
             feedButton.style.color = '#ffffff';
         }
 
-        // Wait 3 seconds, clean up database flags, and restore UI base design
         setTimeout(() => {
             resetButtonNormal();
-            statusRef.set('idle'); // Prepare verification pipeline for next instance
+            statusRef.set('idle');
         }, 3000);
     }
 });
@@ -94,7 +86,7 @@ statusRef.on('value', (snapshot) => {
 function resetButtonNormal() {
     if (feedButton) {
         feedButton.style.pointerEvents = 'auto';
-        feedButton.style.background = ''; // Drops back to CSS template baseline variables
+        feedButton.style.background = '';
         feedButton.style.color = '';
         feedButton.classList.remove('loading');
     }
@@ -104,7 +96,7 @@ function resetButtonNormal() {
 }
 
 // ==========================================================================
-// 4. UI INTERACTION & SCHEDULER LOGIC
+// 4. UI SCREEN TOGGLE
 // ==========================================================================
 function toggleDiv() {
     var comp1 = document.getElementById("1");
@@ -118,5 +110,80 @@ function toggleDiv() {
     }
 }
 
-// Placeholder setups for your mdtimepicker triggers and listing layout builders
-// Keep your existing addStore() and scheduler mechanics underneath this layout block
+// ==========================================================================
+// 5. WORKING SCHEDULER & MDTIMEPICKER INTEGRATION
+// ==========================================================================
+
+// Initialize the mdtimepicker plugin on your timepicker element
+$(document).ready(function(){
+    $('#timepicker').mdtimepicker({ 
+        timeFormat: 'hh:mm:ss t', 
+        format: 'hh:mm t',            
+        theme: 'blue',                
+        readOnly: false,              
+        hourPadding: false            
+    }).on('timechanged', function(e){
+        console.log("Time selected: ", e.value);
+        // Automatically run addStore with the chosen time string
+        saveTimeToFirebase(e.value);
+    });
+});
+
+// Directly push the scheduled time straight to your Firebase backend database
+function saveTimeToFirebase(timeString) {
+    if (!timeString) return;
+
+    // Push new time entry to Firebase under 'feeder/schedule'
+    scheduleRef.push({
+        time: timeString,
+        timestamp: Date.now()
+    })
+    .then(() => {
+        console.log("Schedule successfully written to Firebase!");
+    })
+    .catch((error) => {
+        console.error("Error saving schedule to Firebase: ", error);
+    });
+}
+
+// Real-time listener that builds the UI list every time a schedule is added/removed
+scheduleRef.on('value', (snapshot) => {
+    const wrapper = document.getElementById("wrapper");
+    if (!wrapper) return;
+    
+    wrapper.innerHTML = ""; // Clear existing UI list elements
+    
+    const data = snapshot.val();
+    if (data) {
+        Object.keys(data).forEach((key) => {
+            const item = data[key];
+            
+            // Build the Neumorphic schedule cards dynamically
+            const div = document.createElement("div");
+            div.className = "btn2 btn__secondary2";
+            div.id = key;
+            div.innerHTML = `
+                <p>${item.time}</p>
+                <div class="icon2" style="display:inline-block; margin-left:15px; cursor:pointer;" onclick="deleteSchedule('${key}')">
+                    <ion-icon name="trash-outline" style="color:#d11a2a; font-size:1.8rem; vertical-align:middle;"></ion-icon>
+                </div>
+            `;
+            wrapper.appendChild(div);
+        });
+    } else {
+        wrapper.innerHTML = "<p style='color:var(--greyDark); font-size:1.4rem;'>No schedules set.</p>";
+    }
+});
+
+// Delete function to wipe entries from the cloud DB when clicking trash icon
+function deleteSchedule(key) {
+    if (confirm("Are you sure you want to remove this feed time?")) {
+        scheduleRef.child(key).remove()
+        .then(() => {
+            console.log("Schedule entry removed successfully.");
+        })
+        .catch((error) => {
+            console.error("Failed to delete entry: ", error);
+        });
+    }
+}

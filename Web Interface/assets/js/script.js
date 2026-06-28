@@ -10,9 +10,10 @@ if (!firebase.apps.length) {
 }
 
 const db = firebase.database();
-const commandRef = db.ref('feeder/command');
-const statusRef = db.ref('feeder/lastActionStatus');
-const scheduleRef = db.ref('feeder/schedule'); // Path where schedules are saved
+
+// MATCHED EXACTLY TO THE ARDUINO PATHS:
+const manualFeedRef = db.ref('feednow'); // Changed from 'feeder/command'
+const timersRef     = db.ref('timers');  // Root node for timer1 and timer2
 
 // ==========================================================================
 // 2. NEUMORPHIC ANALOG CLOCK LOGIC
@@ -42,7 +43,7 @@ setInterval(setClock, 1000);
 setClock();
 
 // ==========================================================================
-// 3. "FEED NOW" HANDSHAKE LOGIC
+// 3. "FEED NOW" LOGIC (MATCHED TO ARDUINO INTEGRATION)
 // ==========================================================================
 const feedButton = document.getElementById('feedNowBtn');
 const feedBtnText = document.getElementById('feedBtnText');
@@ -54,10 +55,11 @@ function feednow() {
     if (feedBtnText) feedBtnText.innerText = 'Sending...';
     feedButton.classList.add('loading');
 
-    commandRef.set('feed')
+    // SET INT 1 TO MATCH ARDUINO code: getInt(firebaseDataObj, manualFeedPath)
+    manualFeedRef.set(1)
     .then(() => {
         if (feedBtnText) feedBtnText.innerText = 'Feeding...';
-        console.log("Feed command registered on Firebase.");
+        console.log("Feed command registered on Firebase as 1.");
     })
     .catch((error) => {
         console.error("Firebase database error:", error);
@@ -65,11 +67,12 @@ function feednow() {
     });
 }
 
-statusRef.on('value', (snapshot) => {
-    const statusValue = snapshot.val();
+// Watch for the WeMos to change the token back to 0 when it finishes spinning
+manualFeedRef.on('value', (snapshot) => {
+    const value = snapshot.val();
     
-    if (statusValue === 'success') {
-        console.log("Handshake verified!");
+    if (value === 0) {
+        console.log("Hardware handshake verified! Resetting UI.");
         if (feedBtnText) {
             feedBtnText.innerHTML = '✨ Success!';
             feedButton.style.background = '#2ecc71';
@@ -78,7 +81,6 @@ statusRef.on('value', (snapshot) => {
 
         setTimeout(() => {
             resetButtonNormal();
-            statusRef.set('idle');
         }, 3000);
     }
 });
@@ -114,9 +116,7 @@ function toggleDiv() {
 // 5. WORKING SCHEDULER & MDTIMEPICKER INTEGRATION
 // ==========================================================================
 
-// Initialize the mdtimepicker plugin on your timepicker element
 $(document).ready(function(){
-    // Bind the timepicker to our hidden input element field
     $('#timepicker').mdtimepicker({ 
         timeFormat: 'hh:mm:ss t', 
         format: 'hh:mm t',            
@@ -125,16 +125,12 @@ $(document).ready(function(){
         hourPadding: false            
     }).on('timechanged', function(e){
         console.log("Time picked: ", e.value);
-        
-        // Convert to 24-hour format string for our WeMos processor client checks
         const time24 = convertTo24Hour(e.value);
         saveTimeToFirebase(time24);
     });
 });
 
-// New function to open the time picker modal cleanly when clicking the '+' icon
 function openScheduler() {
-    // Triggers the mdtimepicker modal interface engine open
     $('#timepicker').mdtimepicker('show');
 }
 
@@ -151,8 +147,8 @@ function convertTo24Hour(timeStr) {
 function saveTimeToFirebase(timeString) {
     if (!timeString) return;
 
-    // TARGET THE EXACT PATH: "timers/timer1" instead of pushing a random ID
-    firebase.database().ref('timers').update({
+    // Overwrites timer1 cleanly where the WeMos checks it
+    timersRef.update({
         timer1: timeString
     })
     .then(() => {
@@ -163,24 +159,23 @@ function saveTimeToFirebase(timeString) {
     });
 }
 
-// Real-time listener that builds the UI list every time a schedule is added/removed
-scheduleRef.on('value', (snapshot) => {
+// Listen to the static "timers" folder instead of a broken dynamic query path
+timersRef.on('value', (snapshot) => {
     const wrapper = document.getElementById("wrapper");
     if (!wrapper) return;
     
-    wrapper.innerHTML = ""; // Clear existing UI list elements
+    wrapper.innerHTML = ""; 
     
     const data = snapshot.val();
     if (data) {
         Object.keys(data).forEach((key) => {
-            const item = data[key];
+            const timeValue = data[key]; // reads time value directly from keys (timer1/timer2)
             
-            // Build the Neumorphic schedule cards dynamically
             const div = document.createElement("div");
             div.className = "btn2 btn__secondary2";
             div.id = key;
             div.innerHTML = `
-                <p>${item.time}</p>
+                <p>${timeValue}</p>
                 <div class="icon2" style="display:inline-block; margin-left:15px; cursor:pointer;" onclick="deleteSchedule('${key}')">
                     <ion-icon name="trash-outline" style="color:#d11a2a; font-size:1.8rem; vertical-align:middle;"></ion-icon>
                 </div>
@@ -192,10 +187,9 @@ scheduleRef.on('value', (snapshot) => {
     }
 });
 
-// Delete function to wipe entries from the cloud DB when clicking trash icon
 function deleteSchedule(key) {
     if (confirm("Are you sure you want to remove this feed time?")) {
-        scheduleRef.child(key).remove()
+        timersRef.child(key).remove()
         .then(() => {
             console.log("Schedule entry removed successfully.");
         })

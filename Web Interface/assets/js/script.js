@@ -116,6 +116,7 @@ function toggleDiv() {
 
 // Initialize the mdtimepicker plugin on your timepicker element
 $(document).ready(function(){
+    // Bind the timepicker to our hidden input element field
     $('#timepicker').mdtimepicker({ 
         timeFormat: 'hh:mm:ss t', 
         format: 'hh:mm t',            
@@ -123,50 +124,41 @@ $(document).ready(function(){
         readOnly: false,              
         hourPadding: false            
     }).on('timechanged', function(e){
-        console.log("Original Time picked: ", e.value); // e.g., "03:45 PM"
+        console.log("Time picked: ", e.value);
         
-        // Convert "hh:mm t" string directly to "HH:mm" 24-hour format
+        // Convert to 24-hour format string for our WeMos processor client checks
         const time24 = convertTo24Hour(e.value);
-        console.log("Converted 24-Hour Time for Microcontroller: ", time24); // e.g., "15:45"
-        
-        // Save the clean 24-hour format to your Firebase database
         saveTimeToFirebase(time24);
     });
 });
 
-// Helper function to handle the 24-hour translation mechanics string parsing
+// New function to open the time picker modal cleanly when clicking the '+' icon
+function openScheduler() {
+    // Triggers the mdtimepicker modal interface engine open
+    $('#timepicker').mdtimepicker('show');
+}
+
 function convertTo24Hour(timeStr) {
-    // Expects a string format like "03:45 PM" or "11:15 AM"
     const [time, modifier] = timeStr.split(' ');
     let [hours, minutes] = time.split(':');
-
-    if (hours === '12') {
-        hours = '00';
-    }
-
+    if (hours === '12') hours = '00';
     if (modifier === 'PM' || modifier === 'pm') {
         hours = parseInt(hours, 10) + 12;
     }
-    
-    // Ensure hours are padded with a leading zero if necessary (e.g., "09:05")
-    const formattedHours = String(hours).padStart(2, '0');
-    return `${formattedHours}:${minutes}`;
+    return `${String(hours).padStart(2, '0')}:${minutes}`;
 }
 
-// Directly push the scheduled time straight to your Firebase backend database
 function saveTimeToFirebase(timeString) {
     if (!timeString) return;
-
-    // Push new time entry to Firebase under 'feeder/schedule'
     scheduleRef.push({
         time: timeString,
         timestamp: Date.now()
     })
     .then(() => {
-        console.log("Schedule successfully written to Firebase!");
+        console.log("Data saved to Firebase successfully!");
     })
     .catch((error) => {
-        console.error("Error saving schedule to Firebase: ", error);
+        console.error("Firebase write crash layout error:", error);
     });
 }
 

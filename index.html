@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fish Feeder</title>
+<link href="https://fonts.googleapis.com/css?family=Poppins:400,600,700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/7.15.5/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/7.15.5/firebase-database.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Poppins', -apple-system, Arial, sans-serif;
+    background: #111318;
+    color: #eee;
+    display: flex;
+    justify-content: center;
+    padding: 2.5rem 1rem;
+  }
+  .card {
+    width: 100%;
+    max-width: 380px;
+    text-align: center;
+  }
+  h1 {
+    font-size: 1.4rem;
+    margin-bottom: 0.2rem;
+  }
+  #clock {
+    color: #888;
+    font-size: 1rem;
+    margin-bottom: 2.2rem;
+    letter-spacing: 0.5px;
+  }
+  .feed-btn {
+    width: 100%;
+    padding: 1.3rem;
+    font-size: 1.15rem;
+    font-weight: 600;
+    font-family: inherit;
+    border: none;
+    border-radius: 14px;
+    background: #3b82f6;
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+  }
+  .feed-btn:disabled { pointer-events: none; }
+
+  section {
+    margin-top: 2.5rem;
+    text-align: left;
+    background: #1a1d24;
+    border-radius: 14px;
+    padding: 1.3rem 1.4rem;
+  }
+  section h2 {
+    font-size: 0.95rem;
+    color: #aaa;
+    margin: 0 0 1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .schedule-row {
+    display: flex;
+    gap: 0.6rem;
+  }
+  input[type="time"] {
+    flex: 1;
+    padding: 0.7rem;
+    border-radius: 8px;
+    border: 1px solid #333;
+    background: #0e1015;
+    color: #eee;
+    font-family: inherit;
+    font-size: 1rem;
+  }
+  .save-btn {
+    padding: 0.7rem 1.1rem;
+    border: none;
+    border-radius: 8px;
+    background: #3b82f6;
+    color: #fff;
+    font-family: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .current-schedule {
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    color: #bbb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .clear-btn {
+    background: none;
+    border: none;
+    color: #f87171;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-family: inherit;
+    text-decoration: underline;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>🐟 Fish Feeder</h1>
+    <div id="clock">--:--:--</div>
+
+    <button class="feed-btn" id="feedBtn" onclick="feedNow()">Feed Now</button>
+
+    <section>
+      <h2>Daily Schedule</h2>
+      <div class="schedule-row">
+        <input type="time" id="scheduleInput">
+        <button class="save-btn" onclick="saveSchedule()">Save</button>
+      </div>
+      <div class="current-schedule">
+        <span id="currentSchedule">No schedule set</span>
+        <button class="clear-btn" id="clearBtn" onclick="clearSchedule()" style="display:none;">Clear</button>
+      </div>
+    </section>
+  </div>
+
+<script>
+  // ----- Firebase -----
+  const firebaseConfig = {
+    databaseURL: "https://auto-fish-feeder-5ac75-default-rtdb.firebaseio.com"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  const manualFeedRef = db.ref('feednow');
+  const timer1Ref      = db.ref('timers/timer1');
+  const statusRef       = db.ref('feeder/lastActionStatus');
+
+  // ----- Clock -----
+  function tickClock() {
+    document.getElementById('clock').innerText = new Date().toLocaleTimeString();
+  }
+  setInterval(tickClock, 1000);
+  tickClock();
+
+  // ----- Feed Now -----
+  const feedBtn = document.getElementById('feedBtn');
+
+  function feedNow() {
+    if (feedBtn.disabled) return;
+    feedBtn.disabled = true;
+    feedBtn.innerText = 'Sending...';
+
+    manualFeedRef.set(1)
+      .then(() => { feedBtn.innerText = 'Feeding...'; })
+      .catch((err) => {
+        console.error('Firebase write error:', err);
+        resetFeedBtn();
+      });
+  }
+
+  function resetFeedBtn() {
+    feedBtn.disabled = false;
+    feedBtn.style.background = '';
+    feedBtn.style.color = '';
+    feedBtn.innerText = 'Feed Now';
+  }
+
+  // Ignore the first fire — Firebase sends the currently-stored status
+  // immediately on page load, which would otherwise show a stale result.
+  let statusReady = false;
+  statusRef.on('value', (snapshot) => {
+    if (!statusReady) { statusReady = true; return; }
+
+    const status = snapshot.val();
+    if (status === 'confirmed') {
+      feedBtn.innerHTML = '✨ Success!';
+      feedBtn.style.background = '#2ecc71';
+      setTimeout(resetFeedBtn, 3000);
+    } else if (status === 'failed') {
+      feedBtn.innerHTML = '⚠️ No spin detected';
+      feedBtn.style.background = '#e74c3c';
+      setTimeout(resetFeedBtn, 4000);
+    }
+  });
+
+  // ----- Schedule -----
+  function saveSchedule() {
+    const val = document.getElementById('scheduleInput').value; // already "HH:MM"
+    if (!val) return;
+    timer1Ref.set(val)
+      .then(() => console.log('Schedule saved:', val))
+      .catch((err) => console.error('Firebase write error:', err));
+  }
+
+  function clearSchedule() {
+    if (!confirm('Remove the daily feeding time?')) return;
+    timer1Ref.remove()
+      .then(() => console.log('Schedule removed'))
+      .catch((err) => console.error('Firebase delete error:', err));
+  }
+
+  timer1Ref.on('value', (snapshot) => {
+    const val = snapshot.val();
+    const label = document.getElementById('currentSchedule');
+    const clearBtn = document.getElementById('clearBtn');
+    if (val) {
+      label.innerText = 'Currently set: ' + val;
+      clearBtn.style.display = 'inline';
+    } else {
+      label.innerText = 'No schedule set';
+      clearBtn.style.display = 'none';
+    }
+  });
+</script>
+</body>
+</html>
